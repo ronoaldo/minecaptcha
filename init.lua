@@ -12,8 +12,6 @@ dofile(DIR.."/pnm.lua")
 local function I(msg) minetest.log("action", "[MOD]minecaptcha: "..msg) end
 
 -- Global colors as bytes
-local BLACK = "#000"
-local WHITE = "#FFF"
 local FORM_NAME = "captcha"
 local rng = PcgRandom(os.time())
 
@@ -36,10 +34,10 @@ local function new_captcha()
     local response = n1..""..n2..""..n3..""..n4
     -- Creates a small in-memory captcha
     local canvas = pnm_new(32, 14)
-    pnm_draw(numbers[n1], canvas, 1, 1)
-    pnm_draw(numbers[n2], canvas, 1, 8)
-    pnm_draw(numbers[n3], canvas, 1, 16)
-    pnm_draw(numbers[n4], canvas, 1, 22)
+    pnm_draw(numbers[n1], canvas, 3, 1)
+    pnm_draw(numbers[n2], canvas, 2, 8)
+    pnm_draw(numbers[n3], canvas, 3, 16)
+    pnm_draw(numbers[n4], canvas, 2, 22)
     -- TODO(ronoaldo): add some random noise the the image, like a blur effect
     -- Render the challenge as PNG
     local data = pnm_pixel_as_colors(canvas)
@@ -50,7 +48,7 @@ end
 local challenges = {}
 
 -- Callback to execute when a new player joins the game.
-local function on_newplayer(player)
+local function show_captcha_to_player(player)
     local name = player:get_player_name()
     local texture
     -- Save the challenges and send the texture inline as a small PNG file.
@@ -59,7 +57,7 @@ local function on_newplayer(player)
     local fs = "formspec_version[5]"
         .."size[8,4]"
         .."image[0.6,0.9;1.6,1.6;"..texture.."]"
-        .."field[2.5,1.3;5.2,1.2;captcha_solution;Solution:;]"
+        .."field[2.5,1.3;5.2,1.2;captcha_solution;Type the numbers:;]"
         .."button[5.5,2.9;2.2,0.9;captcha_send;Send]"
     minetest.show_formspec(name, FORM_NAME, fs)
 end
@@ -74,7 +72,7 @@ local function on_form_submit(player, formname, fields)
     I("Parsing captcha response: "..minetest.write_json(fields))
     if solution ~= challenges[name] then
         I("Invalid solution: "..solution)
-        on_newplayer(player)
+        show_captcha_to_player(player)
     else
         I("Valid solution: "..solution)
         challenges[name] = nil
@@ -85,8 +83,14 @@ local function on_form_submit(player, formname, fields)
 end
 
 -- Register callbacks
-minetest.register_on_newplayer(on_newplayer)
-minetest.register_on_joinplayer(on_newplayer)
+if minetest.settings:get("minecaptcha.on_joinplayer") then
+    I("Showing captcha for every new player")
+    minetest.register_on_joinplayer(show_captcha_to_player)
+end
+if minetest.settings:get("minecaptcha.show_captcha_to_player") then
+    I("Showing captcha for each player who joins")
+    minetest.register_on_newplayer(show_captcha_to_player)
+end
 minetest.register_on_player_receive_fields(on_form_submit)
 
 -- We're done, show up on server logs.

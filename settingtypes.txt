@@ -1,0 +1,2 @@
+minecaptcha.on_joinplayer (Show the captcha every time a player joins) bool false
+minecaptcha.on_newplayer  (Show the captcha every time a new account is created) bool false
