@@ -1,14 +1,14 @@
+# Managed privileges are revoked on join, and only granted on sucessful captcha resolution.
+minecaptcha.managed_privs (What privileges require the captcha solution) string shout,interact,basic_privs
+
+# If enabled, accounts that don't solve the captcha are banned when disconnecting.
+minecaptcha.enable_ban (Ban the account if the player is unable to solve the captcha) bool false
+
 # If enabled, requires the captcha every time the player joins.
 minecaptcha.on_joinplayer (Show the captcha every time a player joins) bool false
 
 # If enabled, requires the captcha every time a new player is created.
 minecaptcha.on_newplayer  (Show the captcha every time a new account is created) bool false
 
-# If enabled, after the player leaves and the new account is created by the captcha, removes that account.
-minecaptcha.on_newplayer_remove_accounts (Remove the account if the captcha is not solved properly after timeout. DANGEROUS) bool false
-
-# Managed privileges are revoked if captcha fails, as well as before the player joins.
-minecaptcha.managed_privs (What privileges are required the captcha solution) string "shout, interact, basic_privs"
-
-# If enabled, accounts that don't solve the captcha are banned when leaving/timeout.
-minecaptcha.enable_ban (Ban the account if the player is unable to solve the captcha) bool false
+# If enabled, if a new account is created but hasn't solved the captcha, that account will be removed.
+minecaptcha.on_newplayer_remove_accounts (Remove the newly created account if the captcha is not solved.) bool false

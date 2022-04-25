@@ -106,12 +106,91 @@ local function on_form_submit(player, formname, fields)
         show_captcha_to_player(player)
     else
         I("Player "..name.." sent a valid solution: "..solution)
-        show_success_to_player(player, "You entered the correct numbers!")
+        D("Setting player privs")
+        local managed_privs = minetest.string_to_privs(cfg.managed_privs)
+        local player_privs = minetest.get_player_privs(name)
+        local need_to_set = false
+        for k, v in pairs(managed_privs) do
+            if not player_privs[k] then
+                D("> Adding priv "..k)
+                player_privs[k] = true
+                need_to_set = true
+            end
+        end
+        if need_to_set then
+            D("> Updating player privs")
+            minetest.set_player_privs(name, player_privs)
+        end
+        D("Cleaning up server variables")
+        player:get_meta():set_int("captcha_solved", 1)
         challenges[name] = nil
+        show_success_to_player(player, "You entered the correct numbers!")
         minetest.close_formspec(name, FORM_NAME)
     end
 
     return true
+end
+
+local function on_authplayer(name, ip, is_success)
+    if not is_success then
+        return
+    end
+
+    D("Player "..name.." is trying to join")
+    if cfg.on_joinplayer or cfg.on_newplayer then
+        local managed_privs = minetest.string_to_privs(cfg.managed_privs)
+        D("Revoking managed privs before join: "..cfg.managed_privs)
+        local player_privs = minetest.get_player_privs(name)
+        D("Current privs"..dump(player_privs))
+        local need_to_set = false
+        for k, v in pairs(managed_privs) do
+            if player_privs[k] then
+                D("> Revoking "..k)
+                player_privs[k] = nil
+                need_to_set = true
+            end
+        end
+        if need_to_set then
+            D("Updating player privs to revoke excess ones ...")
+            minetest.set_player_privs(name, player_privs)
+            D("Managed privs revoked")
+        end
+    end
+end
+
+local function on_leaveplayer(player, timed_out)
+    if not player then return end
+    local name = player:get_player_name()
+    D("Player "..name.." is leaving, running checks")
+    local m = player:get_meta()
+    if cfg.on_joinplayer or cfg.on_newplayer then
+        if cfg.enable_ban then
+            D("Checking if we need to ban the player")
+            if m:get_int("captcha_solved") == 0 then
+                D("Captcha not solved, banning player")
+                if not minetest.ban_player(name) then
+                    D("Failed to ban player")
+                end
+            end
+        end
+    end
+    if cfg.on_newplayer and cfg.on_newplayer_remove_accounts then
+        D("Checking if we need to remove the account")
+        if m:get_int("captcha_newplayer") == 1 then
+            if m:get_int("captcha_solved") == 0 then
+                D("Removing new player account who hasn't solved the captcha")
+                minetest.after(5, function()
+                    local res = minetest.remove_player(name)
+                    D("Player account removal result: "..dump(res))
+                end)
+            end
+        end
+    end
+end
+
+local function on_newplayer(player)
+    player:get_meta():set_int("captcha_newplayer", 1)
+    show_captcha_to_player(player)
 end
 
 -- Register callbacks
@@ -121,8 +200,10 @@ if cfg.on_newplayer then
 end
 if cfg.on_joinplayer then
     I("Showing captcha for each player who joins")
-    minetest.register_on_newplayer(show_captcha_to_player)
+    minetest.register_on_newplayer(on_newplayer)
 end
+minetest.register_on_authplayer(on_authplayer)
+minetest.register_on_leaveplayer(on_leaveplayer)
 minetest.register_on_player_receive_fields(on_form_submit)
 
 -- We're done, show up on server logs.
