@@ -1,35 +1,58 @@
 --[[
-Dead simple PPM image library to generate the captcha.
+Dead simple PPM image library in Lua.
+
+Usage:
+
+    local PPM = require("ppm")
+
+    -- Creates an empty image
+    local canvas = PPM.new(16, 16)
+
+    -- Read an image from disk
+    local src = PPM.read("src.ppm")
+
+    -- Draw one image over another
+    PPM.draw(src, canvas, 1, 1)
+
+    -- Encode as string
+    local raw_data = PPM.encode(canvas)
+
+    -- Write the data to file
+    PPM.write(canvas, "dst.ppm")
+
+    -- Convert the 2D pixel array into 1D array.
+    PPM.pixel_array(canvas)
+
 ]]--
 
-function pnm_new(width, height)
-    local pnm = {}
-    pnm.width = width
-    pnm.height = height
-    pnm.max_color = 255
-    pnm.pixels = {}
+local function ppm_new(width, height)
+    local ppm = {}
+    ppm.width = width
+    ppm.height = height
+    ppm.max_color = 255
+    ppm.pixels = {}
     for i=1, height do
-        pnm.pixels[i] = {}
+        ppm.pixels[i] = {}
         for j=1, width do
-            pnm.pixels[i][j] = {a=255, r=255, g=255, b=255}
+            ppm.pixels[i][j] = {a=255, r=255, g=255, b=255}
         end
     end
-    return pnm
+    return ppm
 end
 
-function pnm_info(pnm)
+local function ppm_info(ppm)
     local count = 0
-    for i=1, #pnm.pixels do
-        local row = pnm.pixels[i]
+    for i=1, #ppm.pixels do
+        local row = ppm.pixels[i]
         for j=1, #row do
             count = count+1
         end
     end
-    print("PPM Image (P3 format) (w="..pnm.width..",h="..pnm.height
-        ..",max_color="..pnm.max_color..") and "..count.." pixel color values")
+    print("PPM Image (P3 format) (w="..ppm.width..",h="..ppm.height
+        ..",max_color="..ppm.max_color..") and "..count.." pixel color values")
 end
 
-function pnm_read(file_path)
+local function ppm_read(file_path)
     local fd = io.open(file_path, "r")
     if fd then
         local header = fd:read("*l")
@@ -37,7 +60,7 @@ function pnm_read(file_path)
             -- PPM ASCII file, let's parse it after the first two initial bytes
             fd:seek("set", 2)
             local raw_data = {}
-            local width, height, max_color, count = 0, 0, 0, 0
+            local count = 0
             for line in fd:lines("*l") do
                 -- Remove everything after the comment mark
                 line = line:gsub("(#.*)", "")
@@ -52,6 +75,7 @@ function pnm_read(file_path)
             if #raw_data < 3 then
                 error("Missing PPM fields WIDTH, HEIGHT and MAX_COLOR")
             end
+            local width, height, max_color
             -- Extract the first values to compute the pixel data
             width = table.remove(raw_data, 1)
             height = table.remove(raw_data, 1)
@@ -83,9 +107,9 @@ function pnm_read(file_path)
     end
 end
 
-function pnm_draw(src, dst, x, y)
-    if not src.pixels then error("Invalid PNM for src") end
-    if not dst.pixels then error("Invalid PNM for dst") end
+local function ppm_draw(src, dst, x, y)
+    if not src.pixels then error("Invalid ppm for src") end
+    if not dst.pixels then error("Invalid ppm for dst") end
     if not x then x = 0 end
     if not y then y = 0 end
 
@@ -97,7 +121,7 @@ function pnm_draw(src, dst, x, y)
     end
 end
 
-function pnm_encode(src)
+local function ppm_encode(src)
     local buff = "P3"
     buff = buff .. " "..src.width.." "..src.height.." "..src.max_color.."\n"
     for i=1,src.height do
@@ -113,10 +137,10 @@ function pnm_encode(src)
     return buff
 end
 
-function pnm_write(src, file_path)
+local function ppm_write(src, file_path)
     local fd = io.open(file_path, "w+")
     if fd then
-        local data = pnm_encode(src)
+        local data = ppm_encode(src)
         fd:write(data)
         fd:close()
     else
@@ -124,7 +148,7 @@ function pnm_write(src, file_path)
     end
 end
 
-function pnm_pixel_as_colors(src)
+local function ppm_pixel_as_colors(src)
     local buff = {}
     for i=1, src.height do
         for j=1, src.width do
@@ -133,3 +157,14 @@ function pnm_pixel_as_colors(src)
     end
     return buff
 end
+
+-- Exported PPM functions
+return {
+    new = ppm_new,
+    info = ppm_info,
+    read = ppm_read,
+    draw = ppm_draw,
+    encode = ppm_encode,
+    write = ppm_write,
+    pixel_array = ppm_pixel_as_colors,
+}
