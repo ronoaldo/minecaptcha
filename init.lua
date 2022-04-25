@@ -1,6 +1,4 @@
---[[
-Simple captcha mod for Minetest.
-]]--
+-- Simple captcha mod for Minetest.
 
 -- Helper globals
 local DIR = minetest.get_modpath(minetest.get_current_modname())
@@ -192,10 +190,10 @@ local function on_leaveplayer(player, timed_out)
         if m:get_int("captcha_newplayer") == 1 then
             D("Is new player, checking if captcha was solved")
             if m:get_int("captcha_solved") == 0 then
-                D("Removing new player account who hasn't solved the captcha")
+                I("Removing new player account who hasn't solved the captcha: '"..name.."'")
                 minetest.after(1, function()
                     local res = minetest.remove_player(name)
-                    D("Player account removal result: "..dump(res))
+                    I("Player account '"..name.."' removal result: "..dump(res))
                 end)
             end
         end
