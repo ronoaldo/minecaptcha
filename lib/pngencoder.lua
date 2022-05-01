@@ -1,6 +1,7 @@
 --[[
 Implemented by wyozi
 
+
                    GNU LESSER GENERAL PUBLIC LICENSE
                        Version 3, 29 June 2007
 
@@ -167,6 +168,12 @@ apply, that proxy's public statement of acceptance of any version is
 permanent authorization for you to choose that version for the
 Library.
 ]]--
+
+if not MOD_DIR then
+    MOD_DIR = minetest.get_modpath(minetest.get_current_modname())
+end
+local bit = dofile(MOD_DIR.."/lib/bitop.lua")
+
 local Png = {}
 Png.__index = Png
 

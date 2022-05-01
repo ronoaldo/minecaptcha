@@ -24,6 +24,10 @@ Usage:
     PPM.pixel_array(canvas)
 
 ]]--
+if not MOD_DIR then
+    MOD_DIR = minetest.get_modpath(minetest.get_current_modname())
+end
+local PNG = dofile(MOD_DIR.."/lib/pngencoder.lua")
 
 local function ppm_new(width, height)
     local ppm = {}
@@ -77,8 +81,8 @@ local function ppm_read(file_path)
             end
             local width, height, max_color
             -- Extract the first values to compute the pixel data
-            width = table.remove(raw_data, 1)
-            height = table.remove(raw_data, 1)
+            width = tonumber(table.remove(raw_data, 1))
+            height = tonumber(table.remove(raw_data, 1))
             max_color = table.remove(raw_data, 1)
             -- Build the pixel data as expected by Minetest
             local pixels = {}
@@ -159,7 +163,31 @@ local function ppm_pixel_as_colors(ppm)
 end
 
 local function ppm_encode_png(src)
-    error "Not implemented"
+    local pixels = ppm_pixel_as_colors(src)
+    local png = PNG(src.width, src.height)
+    for i, px in ipairs(pixels) do
+        assert(px.r ~= nil)
+        assert(px.g ~= nil)
+        assert(px.b ~= nil)
+        png:write({px.r, px.g, px.b})
+    end
+    if not png.done then
+        error "Unexpected error: png not done encoding"
+    end
+    return png.output
+end
+
+local function ppm_write_png(ppm, file_path)
+    local fd = io.open(file_path, 'wb')
+    if fd then
+        local encoded_png = ppm_encode_png(ppm)
+        for _, b in pairs(encoded_png) do
+            fd:write(b)
+        end
+        fd:close()
+    else
+        error("Error opening file for write")
+    end
 end
 
 -- Exported PPM functions
@@ -168,8 +196,9 @@ return {
     info = ppm_info,
     read = ppm_read,
     draw = ppm_draw,
-    encode = ppm_encode,
-    write = ppm_write,
     pixel_array = ppm_pixel_as_colors,
+    encode = ppm_encode,
     encode_png = ppm_encode_png,
+    write = ppm_write,
+    write_png = ppm_write_png,
 }

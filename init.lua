@@ -1,13 +1,12 @@
 -- Simple captcha mod for Minetest.
 
 -- Helper globals
-local DIR = minetest.get_modpath(minetest.get_current_modname())
+local MOD_DIR = minetest.get_modpath(minetest.get_current_modname())
 local FORM_NAME = "captcha"
 local rng = PcgRandom(os.time())
 
 -- Imports
-local PNG = dofile(DIR.."/lib/pngencoder.lua")
-local PPM = dofile(DIR.."/lib/ppm.lua")
+local PPM = dofile(MOD_DIR.."/lib/ppm.lua")
 
 -- Informational log
 local function I(msg) minetest.log("action", "[MOD]minecaptcha: "..msg) end
@@ -23,18 +22,20 @@ local cfg = {
     enable_ban = minetest.settings:get_bool("minecaptcha.enable_ban") or false,
     -- Privileges to manage
     managed_privs = minetest.settings:get("minecaptcha.managed_privs") or "shout, interact, basic_privs",
+    -- Always send the captcha texture as dynamic media to clients
+    force_dynamic_media = true,
 }
 I("Loaded settings: "..dump(cfg))
 
 -- Load basic number textures
 local numbers = {}
 for i=0, 9 do
-    numbers[i] = PPM.read(DIR.."/textures/"..i..".ppm")
+    numbers[i] = PPM.read(MOD_DIR.."/textures/"..i..".ppm")
 end
 D("Loaded "..#numbers.." numeric textures.")
 
 -- Generates a random captcha image
-local function new_captcha()
+local function async_make_captcha(callback)
     -- Let's grab random numbers first
     local n1 = rng:next(0,9)
     local n2 = rng:next(0,9)
@@ -51,9 +52,29 @@ local function new_captcha()
     PPM.draw(canvas, numbers[n4], 2, 22)
     -- TODO(ronoaldo): add some random noise the the image, like a blur effect
     -- Render the challenge as PNG
-    local data = PPM.pixel_array(canvas)
-    local texture = "[png:"..minetest.encode_base64(minetest.encode_png(32, 14, data))
-    return response, texture
+    local texture
+    if minetest.encode_png and not cfg.force_dynamic_media then
+        local data = PPM.pixel_array(canvas)
+        texture = "[png:"..minetest.encode_base64(minetest.encode_png(32, 14, data))
+        callback(response, texture)
+    else
+        D("Using dynamic_media_add since server has no support for encode_png")
+        -- Save temp file to world dir
+        texture = "captcha_".. rng:next(0, 1024)..".png"
+        -- texture = "minecaptcha_dynamic.png"
+
+        local temp_file = minetest.get_worldpath().."/"..texture
+        PPM.write_png(canvas, temp_file)
+        local options = {
+            filepath = temp_file,
+            ephemeral = true,
+        }
+        minetest.dynamic_add_media(options, function(name)
+            callback(response, texture)
+            D("Removing temporary file from server ...")
+            os.remove(temp_file)
+        end)
+    end
 end
 
 -- Sends a text message to the player
@@ -76,17 +97,17 @@ local challenges = {}
 -- Callback to execute when a new player joins the game.
 local function show_captcha_to_player(player)
     local name = player:get_player_name()
-    local texture
-    -- Save the challenges and send the texture inline as a small PNG file.
-    challenges[name], texture = new_captcha()
-    D("Generated new captcha for player "..name.." texture => "..texture)
-    show_message_to_player(player, "Are you a robot? Solve the captcha before interacting with the server.")
-    local fs = "formspec_version[5]"
-        .."size[8,4]"
-        .."image[0.6,0.9;1.6,1.6;"..texture.."]"
-        .."field[2.5,1.3;5.2,1.2;captcha_solution;Type the numbers:;]"
-        .."button[5.5,2.9;2.2,0.9;captcha_send;Send]"
-    minetest.show_formspec(name, FORM_NAME, fs)
+    async_make_captcha(function(challenge, texture)
+        challenges[name] = challenge
+        D("Generated new captcha for player "..name.." texture => "..texture)
+        show_message_to_player(player, "Are you a robot? Solve the captcha before interacting with the server.")
+        local fs = "formspec_version[5]"
+            .."size[8,4]"
+            .."image[0.6,0.9;1.6,1.6;"..texture.."]"
+            .."field[2.5,1.3;5.2,1.2;captcha_solution;Type the numbers:;]"
+            .."button[5.5,2.9;2.2,0.9;captcha_send;Send]"
+        minetest.show_formspec(name, FORM_NAME, fs)
+    end)
 end
 
 local function manage_privileges(name, enable)
@@ -200,7 +221,7 @@ local function on_leaveplayer(player, timed_out)
 end
 
 local function on_joinplayer(player)
-    D("Showing captcha for new player")
+    D("Showing captcha for player that just joined the server")
     show_captcha_to_player(player)
 end
 
