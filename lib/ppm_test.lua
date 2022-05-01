@@ -2,7 +2,7 @@
 local PPM = dofile("./ppm.lua")
 
 -- Load PPM image
-local ppm = PPM.read("textures/1.ppm")
+local ppm = PPM.read("../textures/1.ppm")
 PPM.info(ppm)
 
 -- Test writing it back
@@ -13,7 +13,7 @@ local canvas = PPM.new(16, 18)
 PPM.info(canvas)
 
 -- Test drawing over canvas
-PPM.draw(ppm, canvas, 1, 1)
+PPM.draw(canvas, ppm, 1, 1)
 PPM.info(canvas)
 
 -- Test saving the image we drawn, and reading it back

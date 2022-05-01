@@ -107,26 +107,26 @@ local function ppm_read(file_path)
     end
 end
 
-local function ppm_draw(src, dst, x, y)
+local function ppm_draw(ppm, src, x, y)
     if not src.pixels then error("Invalid ppm for src") end
-    if not dst.pixels then error("Invalid ppm for dst") end
+    if not ppm.pixels then error("Invalid ppm for dst") end
     if not x then x = 0 end
     if not y then y = 0 end
 
     for i=1, src.height do
         for j=1, src.width do
             local px = src.pixels[i][j]
-            dst.pixels[i+x][j+y] = px
+            ppm.pixels[i+x][j+y] = px
         end
     end
 end
 
-local function ppm_encode(src)
+local function ppm_encode(ppm)
     local buff = "P3"
-    buff = buff .. " "..src.width.." "..src.height.." "..src.max_color.."\n"
-    for i=1,src.height do
-        for j=1,src.width do
-            local px = src.pixels[i][j]
+    buff = buff .. " "..ppm.width.." "..ppm.height.." "..ppm.max_color.."\n"
+    for i=1,ppm.height do
+        for j=1,ppm.width do
+            local px = ppm.pixels[i][j]
             if px then
                 local r, g, b = px.r, px.g, px.b
                 buff = buff .. " "..r.." "..g.." "..b
@@ -137,10 +137,10 @@ local function ppm_encode(src)
     return buff
 end
 
-local function ppm_write(src, file_path)
+local function ppm_write(ppm, file_path)
     local fd = io.open(file_path, "w+")
     if fd then
-        local data = ppm_encode(src)
+        local data = ppm_encode(ppm)
         fd:write(data)
         fd:close()
     else
@@ -148,14 +148,18 @@ local function ppm_write(src, file_path)
     end
 end
 
-local function ppm_pixel_as_colors(src)
+local function ppm_pixel_as_colors(ppm)
     local buff = {}
-    for i=1, src.height do
-        for j=1, src.width do
-            table.insert(buff, src.pixels[i][j])
+    for i=1, ppm.height do
+        for j=1, ppm.width do
+            table.insert(buff, ppm.pixels[i][j])
         end
     end
     return buff
+end
+
+local function ppm_encode_png(src)
+    error "Not implemented"
 end
 
 -- Exported PPM functions
@@ -167,4 +171,5 @@ return {
     encode = ppm_encode,
     write = ppm_write,
     pixel_array = ppm_pixel_as_colors,
+    encode_png = ppm_encode_png,
 }

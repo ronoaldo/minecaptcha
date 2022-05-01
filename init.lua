@@ -2,17 +2,16 @@
 
 -- Helper globals
 local DIR = minetest.get_modpath(minetest.get_current_modname())
+local FORM_NAME = "captcha"
+local rng = PcgRandom(os.time())
 
 -- Imports
-local PPM = dofile(DIR.."/ppm.lua")
+local PNG = dofile(DIR.."/lib/pngencoder.lua")
+local PPM = dofile(DIR.."/lib/ppm.lua")
 
 -- Informational log
 local function I(msg) minetest.log("action", "[MOD]minecaptcha: "..msg) end
 local function D(msg) minetest.log("verbose", "[MOD]minecaptcha: "..msg) end
-
--- Global colors as bytes
-local FORM_NAME = "captcha"
-local rng = PcgRandom(os.time())
 
 -- Settings
 local cfg = {
@@ -46,10 +45,10 @@ local function new_captcha()
     local response = n1..""..n2..""..n3..""..n4
     -- Creates a small in-memory captcha
     local canvas = PPM.new(32, 14)
-    PPM.draw(numbers[n1], canvas, 3, 1)
-    PPM.draw(numbers[n2], canvas, 2, 8)
-    PPM.draw(numbers[n3], canvas, 3, 16)
-    PPM.draw(numbers[n4], canvas, 2, 22)
+    PPM.draw(canvas, numbers[n1], 3, 1)
+    PPM.draw(canvas, numbers[n2], 2, 8)
+    PPM.draw(canvas, numbers[n3], 3, 16)
+    PPM.draw(canvas, numbers[n4], 2, 22)
     -- TODO(ronoaldo): add some random noise the the image, like a blur effect
     -- Render the challenge as PNG
     local data = PPM.pixel_array(canvas)
