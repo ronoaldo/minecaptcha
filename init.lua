@@ -22,8 +22,6 @@ local cfg = {
     enable_ban = minetest.settings:get_bool("minecaptcha.enable_ban") or false,
     -- Privileges to manage
     managed_privs = minetest.settings:get("minecaptcha.managed_privs") or "shout, interact, basic_privs",
-    -- Always send the captcha texture as dynamic media to clients
-    force_dynamic_media = true,
 }
 I("Loaded settings: "..dump(cfg))
 
@@ -52,29 +50,21 @@ local function async_make_captcha(callback)
     PPM.draw(canvas, numbers[n4], 2, 22)
     -- TODO(ronoaldo): add some random noise the the image, like a blur effect
     -- Render the challenge as PNG
-    local texture
-    if minetest.encode_png and not cfg.force_dynamic_media then
-        local data = PPM.pixel_array(canvas)
-        texture = "[png:"..minetest.encode_base64(minetest.encode_png(32, 14, data))
+    D("Using dynamic_media_add to send captcha image to client.")
+    -- Save temp file to world dir
+    local texture = "captcha_".. rng:next(1000, 9999)..".png"
+    local temp_file = minetest.get_worldpath().."/"..texture
+    PPM.write_png(canvas, temp_file)
+    local options = {
+        filepath = temp_file,
+        ephemeral = true,
+    }
+    minetest.dynamic_add_media(options, function(name)
+        D("Showing captcha to "..name)
         callback(response, texture)
-    else
-        D("Using dynamic_media_add since server has no support for encode_png")
-        -- Save temp file to world dir
-        texture = "captcha_".. rng:next(0, 1024)..".png"
-        -- texture = "minecaptcha_dynamic.png"
-
-        local temp_file = minetest.get_worldpath().."/"..texture
-        PPM.write_png(canvas, temp_file)
-        local options = {
-            filepath = temp_file,
-            ephemeral = true,
-        }
-        minetest.dynamic_add_media(options, function(name)
-            callback(response, texture)
-            D("Removing temporary file from server ...")
-            os.remove(temp_file)
-        end)
-    end
+        D("Removing temporary file from server, "..name.." already downloaded it")
+        os.remove(temp_file)
+    end)
 end
 
 -- Sends a text message to the player
@@ -163,7 +153,6 @@ local function on_form_submit(player, formname, fields)
 
     return true
 end
-
 
 local function on_authplayer(name, ip, is_success)
     if not is_success then
