@@ -48,7 +48,7 @@ if ranks then
 	end
 	cfg.bypass_ranks = {}
 	local bypass = minetest.settings:get("minecaptcha.bypass_ranks")
-	if bypass ~= "" then
+	if bypass and bypass ~= "" then
 		for str in string.gmatch(bypass, "([^,]+)") do
 			cfg.bypass_ranks[string.trim(str)] = true
 		end
@@ -60,8 +60,8 @@ end
 
 -- Split bypass_users
 cfg.bypass_users = {}
-local bypass = minetest.settings:get("minecaptcha.bypass_users") or ""
-if bypass ~= "" then
+local bypass = minetest.settings:get("minecaptcha.bypass_users")
+if bypass and bypass ~= "" then
 	for str in string.gmatch(bypass, "([^,]+)") do
 		cfg.bypass_users[string.trim(str)] = true
 	end
@@ -191,32 +191,6 @@ local function manage_privileges(name, enable)
 			minetest.set_player_privs(name, cfg.privs_during)
 		end
 	end
-
---[[	local managed_privs = minetest.string_to_privs(cfg.managed_privs)
-	D("Managed privs: "..cfg.managed_privs.. " enabling? "..dump(enable))
-	local player_privs = minetest.get_player_privs(name)
-	D("Current privs"..dump(player_privs))
-	local need_to_set = false
-	for k, v in pairs(managed_privs) do
-		if enable then
-			if not player_privs[k] then
-				D("> Granting "..k)
-				player_privs[k] = true
-				need_to_set = true
-			end
-		else
-			if player_privs[k] then
-				D("> Revoking "..k)
-				player_privs[k] = nil
-				need_to_set = true
-			end
-		end
-	end
-	if need_to_set then
-		D("Updating player privs (privs changed) ...")
-		minetest.set_player_privs(name, player_privs)
-		D("Managed privs revoked")
-	end]]
 end
 
 -- Callback to execute when a form is submited, parsing the captcha response.
@@ -236,7 +210,9 @@ local function on_form_submit(player, formname, fields)
 		D("Setting player privs")
 		manage_privileges(name, true)
 		D("Cleaning up server variables")
-		player:get_meta():set_int("captcha_solved", 1)
+		local meta = player:get_meta()
+		meta:set_int("captcha_solved", 1)
+		meta:set_string("captcha_newplayer", "")	-- Remove newplayer var from meta
 		challenges[name] = nil
 		show_success_to_player(player, "You entered the correct numbers!")
 		minetest.close_formspec(name, FORM_NAME)
@@ -245,6 +221,13 @@ local function on_form_submit(player, formname, fields)
 	return true
 end
 
+local function remove_player_data(name)
+	I("Removing new player account who hasn't solved the captcha: '"..name.."'")
+	local res = minetest.remove_player(name)
+	I("Player account '"..name.."' removal result: "..dump(res))
+	res = minetest.remove_player_auth(name)
+	I("Player auth '"..name.."' removal result: "..dump(res))
+end
 
 local function on_joinplayer(player, is_new)
 
@@ -260,30 +243,25 @@ local function on_joinplayer(player, is_new)
 	end
 
 	local meta = player:get_meta()
-	if is_new then meta:set_int("captcha_newplayer", 1) end
+	if is_new then
+		meta:set_int("captcha_newplayer", 1)
+	else
+		meta:set_string("captcha_newplayer", "")
+	end
 
-	if cfg.on_joinplayer or (meta:get_int("captcha_newplayer") == 1 and meta:get_int("captcha_solved") ~= 1) then
+	if cfg.on_joinplayer or (is_new and meta:get_int("captcha_newplayer") == 1 and meta:get_int("captcha_solved") ~= 1) then
 		D("Revoking privileges")
 		manage_privileges(name, false)
 		meta:set_int("captcha_solved", 0)
+	else
+		return
 	end
 
 	if cfg.time_limit then minetest.after(cfg.time_limit, function(name)
 			local player = minetest.get_player_by_name(name)
 			local m = player:get_meta()
 			if meta:get_int("captcha_solved") == 0 then
-				if cfg.enable_ban then
-					minetest.ban_player(name)
-				else
-					minetest.kick_player(name, "Failed to complete captcha")
-				end
-				-- Copied this here because I don't know if using minetest.kick_player will call on_leaveplayer
-				if cfg.on_newplayer and cfg.on_newplayer_remove_accounts and
-						meta:get_int("captcha_newplayer") then
-					I("Removing new player account who hasn't solved the captcha: '"..name.."'")
-					local res = minetest.remove_player(name)
-						I("Player account '"..name.."' removal result: "..dump(res))
-				end
+				minetest.kick_player(name, "Failed to complete captcha")
 			end
 		end, name)	-- need to pass name to it after defining the function
 	end
@@ -297,22 +275,21 @@ local function on_leaveplayer(player)
 	if player_privs then player_privs[name] = nil end
 	local m = player:get_meta()
 	D("Player meta: "..dump(m:to_table()))
-	if m:get_int("captcha_solved") == 0 then
+	if m:get_int("captcha_newplayer") == 1 and m:get_int("captcha_solved") == 0 then
 		if cfg.on_newplayer and cfg.on_newplayer_remove_accounts then
-			D("Checking if we need to remove the account")
-			if m:get_int("captcha_newplayer") == 1 then
-				I("Removing new player account who hasn't solved the captcha: '"..name.."'")
---				minetest.after(1, function()
-				   local res = minetest.remove_player(name)
-					I("Player account '"..name.."' removal result: "..dump(res))
---				end)
-			end
-		elseif cfg.enable_ban and (cfg.on_joinplayer or cfg.on_newplayer) then
-			D("Captcha not solved, banning player")
-			if not minetest.ban_player(name) then
-				-- Maybe add support here for other ban mods?
-				-- I don't know if they use the builtin ban methods so this may already be complete?
-				D("Failed to ban player")
+				minetest.after(1, remove_player_data, name)
+		else
+			-- This is needed because if privs_after is not defined then we need to give back the privs that were taken away
+			-- If privs_after IS defined, then we need to leave privs as they are so that client reconnects with the 'during' privs
+			if cfg.privs_after == "" then manage_privileges(name, true) end
+			player:get_meta():set_string("captcha_newplayer", "")
+			if cfg.enable_ban and (cfg.on_joinplayer or cfg.on_newplayer) then
+				D("Captcha not solved, banning player")
+				if not minetest.ban_player(name) then
+					-- Maybe add support here for other ban mods?
+					-- I don't know if they use the builtin ban methods so this may already be complete?
+					D("Failed to ban player")
+				end
 			end
 		end
 	end
@@ -320,11 +297,11 @@ end
 
 -- Register callbacks
 if cfg.on_newplayer then
-	D("Inserting into minetest.registered_on_newplayer")
+	D("Register minetest.register_on_newplayer")
 	minetest.register_on_newplayer(function(player) on_joinplayer(player, true) end)
 end
 if cfg.on_joinplayer then
-	D("Inserting into minetest.registered_on_joinplayer")
+	D("Register minetest.register_on_joinplayer")
 	minetest.register_on_joinplayer(function(player) on_joinplayer(player, false) end)
 end
 minetest.register_on_leaveplayer(on_leaveplayer)
