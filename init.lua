@@ -11,7 +11,8 @@ local PPM = dofile(DIR.."/ppm.lua")
 local function I(msg) minetest.log("[MOD]minecaptcha: "..msg) end
 --local function D(msg) minetest.log("verbose", "[MOD]minecaptcha: "..msg) end
 local function D(msg) minetest.log("[MOD]minecaptcha: "..msg) end
-local function E(msg) minetest.log("error", "[MOD]minecaptcha: "..msg) end
+-- Unused right now
+--local function E(msg) minetest.log("error", "[MOD]minecaptcha: "..msg) end
 
 -- Global colors as bytes
 local FORM_NAME = "captcha"
@@ -33,7 +34,8 @@ local cfg = {
 }
 
 -- Ranks settings
--- Using this method, lua will validate all conditions are nonzero and non-nil and set the variable to the result of the last expression
+-- Using this method, lua will validate all conditions are nonzero and
+--    non-nil and set the variable to the result of the last expression
 local ranks = minetest.settings:get_bool("minecaptcha.use_ranks") and minetest.get_modpath("ranks") and ranks
 
 if ranks then
@@ -50,7 +52,7 @@ if ranks then
 	local bypass = minetest.settings:get("minecaptcha.bypass_ranks")
 	if bypass and bypass ~= "" then
 		for str in string.gmatch(bypass, "([^,]+)") do
-			cfg.bypass_ranks[string.trim(str)] = true
+			cfg.bypass_ranks[string:trim(str)] = true
 		end
 	end
 else
@@ -63,7 +65,7 @@ cfg.bypass_users = {}
 local bypass = minetest.settings:get("minecaptcha.bypass_users")
 if bypass and bypass ~= "" then
 	for str in string.gmatch(bypass, "([^,]+)") do
-		cfg.bypass_users[string.trim(str)] = true
+		cfg.bypass_users[string:trim(str)] = true
 	end
 end
 
@@ -103,7 +105,7 @@ local function new_captcha()
 	PPM.draw(numbers[n4], canvas, 2, 22)
 	-- TODO(ronoaldo): add some random noise the the image, like a blur effect
 	-- Render the challenge as PNG
-	local data = PPM.pixel_array(canvas)
+--	local data = PPM.pixel_array(canvas)
 --	local png = minetest.encode_png(32, 14, data)
 --	local png64 = minetest.encode_base64(png)
 	local texture = "blank.bmp"
@@ -249,7 +251,8 @@ local function on_joinplayer(player, is_new)
 		meta:set_string("captcha_newplayer", "")
 	end
 
-	if cfg.on_joinplayer or (is_new and meta:get_int("captcha_newplayer") == 1 and meta:get_int("captcha_solved") ~= 1) then
+	if cfg.on_joinplayer or (is_new and meta:get_int("captcha_newplayer") == 1 and
+			meta:get_int("captcha_solved") ~= 1) then
 		D("Revoking privileges")
 		manage_privileges(name, false)
 		meta:set_int("captcha_solved", 0)
@@ -257,11 +260,10 @@ local function on_joinplayer(player, is_new)
 		return
 	end
 
-	if cfg.time_limit then minetest.after(cfg.time_limit, function(name)
-			local player = minetest.get_player_by_name(name)
-			local m = player:get_meta()
-			if meta:get_int("captcha_solved") == 0 then
-				minetest.kick_player(name, "Failed to complete captcha")
+	if cfg.time_limit then minetest.after(cfg.time_limit, function(playername)
+			local m = minetest.get_player_by_name(playername):get_meta()
+			if m:get_int("captcha_solved") == 0 then
+				minetest.kick_player(playername, "Failed to complete captcha")
 			end
 		end, name)	-- need to pass name to it after defining the function
 	end
@@ -279,8 +281,10 @@ local function on_leaveplayer(player)
 		if cfg.on_newplayer and cfg.on_newplayer_remove_accounts then
 				minetest.after(1, remove_player_data, name)
 		else
-			-- This is needed because if privs_after is not defined then we need to give back the privs that were taken away
-			-- If privs_after IS defined, then we need to leave privs as they are so that client reconnects with the 'during' privs
+			-- This is needed because if privs_after is not defined then
+			--     we need to give back the privs that were taken away
+			-- If privs_after IS defined, then we need to leave privs as
+			--     they are so that client reconnects with the 'during' privs
 			if cfg.privs_after == "" then manage_privileges(name, true) end
 			player:get_meta():set_string("captcha_newplayer", "")
 			if cfg.enable_ban and (cfg.on_joinplayer or cfg.on_newplayer) then
