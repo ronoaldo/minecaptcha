@@ -7,8 +7,10 @@ local DIR = minetest.get_modpath(minetest.get_current_modname())
 local PPM = dofile(DIR.."/ppm.lua")
 
 -- Informational log
-local function I(msg) minetest.log("action", "[MOD]minecaptcha: "..msg) end
-local function D(msg) minetest.log("verbose", "[MOD]minecaptcha: "..msg) end
+--local function I(msg) minetest.log("info", "[MOD]minecaptcha: "..msg) end
+local function I(msg) minetest.log("[MOD]minecaptcha: "..msg) end
+--local function D(msg) minetest.log("verbose", "[MOD]minecaptcha: "..msg) end
+local function D(msg) minetest.log("[MOD]minecaptcha: "..msg) end
 local function E(msg) minetest.log("error", "[MOD]minecaptcha: "..msg) end
 
 -- Global colors as bytes
@@ -19,15 +21,15 @@ local rng = PcgRandom(os.time())
 local cfg = {
 	-- Enabled triggers
 	on_joinplayer = minetest.settings:get_bool("minecaptcha.on_joinplayer") or false,
-	on_newplayer = minetest.settings:get_bool("minecaptcha.on_newplayer") or false,
+	on_newplayer = minetest.settings:get_bool("minecaptcha.on_newplayer") or true,
 	-- Enabled actions
-	on_newplayer_remove_accounts = minetest.settings:get_bool("minecaptcha.on_newplayer_remove_accounts") or false,
+	on_newplayer_remove_accounts = minetest.settings:get_bool("minecaptcha.on_newplayer_remove_accounts") or true,
 	enable_ban = minetest.settings:get_bool("minecaptcha.enable_ban") or false,
 	-- Before and after privs
 	privs_during = minetest.settings:get("minecaptcha.privs_during_captcha") or "",
 	privs_after = minetest.settings:get("minecaptcha.privs_on_success") or "",
 	-- Time limit before kicking player
-	time_limit = tonumber(minetest.settings:get("minecaptcha.time_limit") or 0)
+	time_limit = tonumber(minetest.settings:get("minecaptcha.time_limit") or 300)
 }
 
 -- Ranks settings
@@ -35,12 +37,13 @@ local cfg = {
 local ranks = minetest.settings:get_bool("minecaptcha.use_ranks") and minetest.get_modpath("ranks") and ranks
 
 if ranks then
+	I("Ranks detected and support enabled!")
 	if cfg.privs_during == "" then
 		ranks.register("minecaptcha_none", {
 			strict_privs = true,
 			revoke_extra = true,
 			privs = {}
-		}
+		})
 		cfg.privs_during = "minecaptcha_none"
 	end
 	cfg.bypass_ranks = {}
@@ -51,15 +54,15 @@ if ranks then
 		end
 	end
 else
-	if cfg.privs_during ~= "" then cfg.privs_during = minetest.string_to_privs(cfg.privs_during) end
-	if cfg.privs_after ~= "" then cfg.privs_after = minetest.string_to_privs(cfg.privs_after) end
+	if cfg.privs_during then cfg.privs_during = minetest.string_to_privs(cfg.privs_during) end
+	if cfg.privs_after then cfg.privs_after = minetest.string_to_privs(cfg.privs_after) end
 end
 
 -- Split bypass_users
 cfg.bypass_users = {}
-local bypass = minetest.settings:get("minecaptcha.bypass_users")
+local bypass = minetest.settings:get("minecaptcha.bypass_users") or ""
 if bypass ~= "" then
-	for str in string.gmatch(bypass, "([^,}+)") do
+	for str in string.gmatch(bypass, "([^,]+)") do
 		cfg.bypass_users[string.trim(str)] = true
 	end
 end
@@ -78,7 +81,7 @@ end
 -- Load basic number textures
 local numbers = {}
 for i=0, 9 do
-	numbers[i] = PPM.read(DIR.."/textures/"..i..".ppm")
+	numbers[i] = PPM.read(DIR.."/ppm-textures/"..i..".ppm")
 end
 D("Loaded "..#numbers.." numeric textures.")
 
@@ -101,7 +104,12 @@ local function new_captcha()
 	-- TODO(ronoaldo): add some random noise the the image, like a blur effect
 	-- Render the challenge as PNG
 	local data = PPM.pixel_array(canvas)
-	local texture = "[png:"..minetest.encode_base64(minetest.encode_png(32, 14, data))
+--	local png = minetest.encode_png(32, 14, data)
+--	local png64 = minetest.encode_base64(png)
+	local texture = "blank.bmp"
+	------------------------- REMOVE THIS ------------------------
+	minetest.chat_send_all(tostring(response))
+	--------------------------------------------------------------
 	return response, texture
 end
 
@@ -149,10 +157,12 @@ local function validate_storage(name, i)
 end
 
 local function manage_privileges(name, enable)
+	D("managing privs for "..name)
 	if ranks then
+		D("using ranks, enable is "..tostring(enable))
 		if enable then
 			if player_privs and player_privs[name] then
-				ranks.set_rank(name, player_privs[name]
+				ranks.set_rank(name, player_privs[name])
 				player_privs[name] = nil
 			else
 				ranks.set_rank(name, cfg.privs_after)
@@ -165,19 +175,20 @@ local function manage_privileges(name, enable)
 			ranks.set_rank(name, cfg.privs_during)
 		end
 	else
+		D("without ranks, enable is "..tostring(enable))
 		if enable then
 			if player_privs and player_privs[name] then
-				minetest.set_player_privs(player_privs[name])
+				minetest.set_player_privs(name, player_privs[name])
 				player_privs[name] = nil
 			else
-				minetest.set_player_privs(cfg.privs_after)
+				minetest.set_player_privs(name, cfg.privs_after)
 			end
 		else
 			if player_privs then
 				player_privs[name] = minetest.get_player_privs(name)
 				minetest.after(10, validate_storage, 0)
 			end
-			minetest.set_player_privs(cfg.privs_during)
+			minetest.set_player_privs(name, cfg.privs_during)
 		end
 	end
 
@@ -245,13 +256,13 @@ local function on_joinplayer(player, is_new)
 	if cfg.bypass_users and cfg.bypass_users[name] then return end
 	if ranks and cfg.bypass_ranks then
 		local user_rank = ranks.get_rank(name)
-		if cfg.bypass_ranks[user_rank) then return end
+		if cfg.bypass_ranks[user_rank] then return end
 	end
 
 	local meta = player:get_meta()
 	if is_new then meta:set_int("captcha_newplayer", 1) end
 
-	if cfg.on_joinplayer or (cfg.on_newplayer and meta:get_int("captcha_solved") == 0) then
+	if cfg.on_joinplayer or (meta:get_int("captcha_newplayer") == 1 and meta:get_int("captcha_solved") ~= 1) then
 		D("Revoking privileges")
 		manage_privileges(name, false)
 		meta:set_int("captcha_solved", 0)
@@ -270,13 +281,11 @@ local function on_joinplayer(player, is_new)
 				if cfg.on_newplayer and cfg.on_newplayer_remove_accounts and
 						meta:get_int("captcha_newplayer") then
 					I("Removing new player account who hasn't solved the captcha: '"..name.."'")
-					minetest.after(1, function()
 					local res = minetest.remove_player(name)
 						I("Player account '"..name.."' removal result: "..dump(res))
-					end)
 				end
 			end
-		end)
+		end, name)	-- need to pass name to it after defining the function
 	end
 	show_captcha_to_player(player)
 end
@@ -285,7 +294,7 @@ local function on_leaveplayer(player)
 	if not player then return end
 	local name = player:get_player_name()
 	D("Player "..name.." is leaving, running checks")
-	player_privs[name] = nil
+	if player_privs then player_privs[name] = nil end
 	local m = player:get_meta()
 	D("Player meta: "..dump(m:to_table()))
 	if m:get_int("captcha_solved") == 0 then
@@ -293,10 +302,10 @@ local function on_leaveplayer(player)
 			D("Checking if we need to remove the account")
 			if m:get_int("captcha_newplayer") == 1 then
 				I("Removing new player account who hasn't solved the captcha: '"..name.."'")
-				minetest.after(1, function()
+--				minetest.after(1, function()
 				   local res = minetest.remove_player(name)
 					I("Player account '"..name.."' removal result: "..dump(res))
-				end)
+--				end)
 			end
 		elseif cfg.enable_ban and (cfg.on_joinplayer or cfg.on_newplayer) then
 			D("Captcha not solved, banning player")
@@ -310,13 +319,13 @@ local function on_leaveplayer(player)
 end
 
 -- Register callbacks
-local function register_callbacks()
-	if cfg.on_newplayer then
-		table.insert(minetest.registered_on_newplayer, 1, function(player) on_joinplayer(player, true) end)
-	end
-	if cfg.on_joinplayer then
-		table.insert(minetest.registered_on_joinplayer, 1, function(player) on_joinplayer(player, false) end)
-	end
+if cfg.on_newplayer then
+	D("Inserting into minetest.registered_on_newplayer")
+	minetest.register_on_newplayer(function(player) on_joinplayer(player, true) end)
+end
+if cfg.on_joinplayer then
+	D("Inserting into minetest.registered_on_joinplayer")
+	minetest.register_on_joinplayer(function(player) on_joinplayer(player, false) end)
 end
 minetest.register_on_leaveplayer(on_leaveplayer)
 minetest.register_on_player_receive_fields(on_form_submit)

@@ -26,4 +26,4 @@ minecaptcha.bypass_users (These users can join without captcha) string
 minecaptcha.bypass_ranks (These ranks can join without captcha) string
 
 # Kick the player after this many seconds if captcha hasn't been completed. Set to 0 to disable
-minecaptcha.time_limit (Time limit to complete captcha before being kicked) int 0
+minecaptcha.time_limit (Time limit to complete captcha before being kicked) int 300
