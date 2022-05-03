@@ -3,6 +3,7 @@ allow_defined_top = true
 
 globals = {
     "minetest",
+    "minenews",
     "ranks",
 }
 

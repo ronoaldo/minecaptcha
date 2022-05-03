@@ -9,8 +9,15 @@ local rng = PcgRandom(os.time())
 local PPM = dofile(MOD_DIR.."/lib/ppm.lua")
 
 -- Informational log
-local function I(msg) minetest.log("action", "[MOD]minecaptcha: "..msg) end
-local function D(msg) minetest.log("verbose", "[MOD]minecaptcha: "..msg) end
+local function _log_prefix(msg)
+	local buff = ""
+	for l in msg:gmatch("[^\r\n]+") do
+		buff = buff..l.." "
+	end
+	return "[MOD]minecaptcha: "..buff
+end
+local function I(msg) minetest.log("action", _log_prefix(msg)) end
+local function D(msg) minetest.log("verbose", _log_prefix(msg)) end
 
 -- Settings
 local cfg = {
@@ -222,6 +229,10 @@ local function on_form_submit(player, formname, fields)
 		challenges[name] = nil
 		show_success_to_player(player, "You entered the correct numbers!")
 		minetest.close_formspec(name, FORM_NAME)
+		-- If minenews is installed, show the form
+		if minetest.global_exists("minenews") then
+			minenews.on_joinplayer(player)
+		end
 	end
 
 	return true
@@ -264,9 +275,18 @@ local function on_joinplayer(player, is_new)
 		return
 	end
 
-	if cfg.time_limit then minetest.after(cfg.time_limit, function(playername)
-			local m = minetest.get_player_by_name(playername):get_meta()
+	if cfg.time_limit then
+		D("Scheduling time_limit of "..cfg.time_limit.." to player "..name)
+		minetest.after(cfg.time_limit, function(playername)
+			D("Checking for captcha timeout ... playername="..dump(playername))
+			local p = minetest.get_player_by_name(playername)
+			if not p then
+				D("Player "..playername.." seems to be disconnected")
+				return
+			end
+			local m = player:get_meta()
 			if m:get_int("captcha_solved") == 0 then
+				I("Player "..playername.." failed to solve captcha, kicking ...")
 				minetest.kick_player(playername, "Failed to complete captcha")
 			end
 		end, name)	-- need to pass name to it after defining the function
