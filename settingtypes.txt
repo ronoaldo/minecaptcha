@@ -1,5 +1,11 @@
-# Managed privileges are revoked on join, and only granted on sucessful captcha resolution.
-minecaptcha.managed_privs (What privileges require the captcha solution) string shout,interact,basic_privs
+# Enable ranks usage if Ranks is installed.
+minecaptcha.use_ranks (Use Ranks if installed) bool true
+
+# Comma separated list of privs to apply while captcha is shown. If Ranks is enabled, this must be the name of a rank to apply. If this is empty, no privs will be given before captcha is complete
+minecaptcha.privs_during_captcha (Privs or rank to apply during captcha verification) string
+
+# Comma separated list of privs to apply on successful captcha completion. If Ranks is enabled, this must be the name of a rank to apply. If this is left empty, then the privs or rank will be stored before removal and then restored on success.
+minecaptcha.privs_on_success (Privs or rank to apply on success) string
 
 # If enabled, accounts that don't solve the captcha are banned when disconnecting.
 minecaptcha.enable_ban (Ban the account if the player is unable to solve the captcha) bool false
@@ -8,7 +14,16 @@ minecaptcha.enable_ban (Ban the account if the player is unable to solve the cap
 minecaptcha.on_joinplayer (Show the captcha every time a player joins) bool false
 
 # If enabled, requires the captcha every time a new player is created.
-minecaptcha.on_newplayer  (Show the captcha every time a new account is created) bool false
+minecaptcha.on_newplayer  (Show the captcha every time a new account is created) bool true
 
 # If enabled, if a new account is created but hasn't solved the captcha, that account will be removed.
-minecaptcha.on_newplayer_remove_accounts (Remove the newly created account if the captcha is not solved.) bool false
+minecaptcha.on_newplayer_remove_accounts (Remove the newly created account if the captcha is not solved.) bool true
+
+# Comma separated list of users who bypass captcha
+minecaptcha.bypass_users (These users can join without captcha) string
+
+# Comma separated list of ranks which bypass captcha (ignored if Ranks is not installed)
+minecaptcha.bypass_ranks (These ranks can join without captcha) string
+
+# Kick the player after this many seconds if captcha hasn't been completed. Set to 0 to disable
+minecaptcha.time_limit (Time limit to complete captcha before being kicked) int 300
