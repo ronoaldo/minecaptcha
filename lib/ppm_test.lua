@@ -17,7 +17,7 @@ MOD_DIR = ".."
 local PPM = dofile(MOD_DIR.."/lib/ppm.lua")
 
 -- Load PPM image
-local ppm = PPM.read("../textures/1.ppm")
+local ppm = PPM.read("../ppm-textures/1.ppm")
 PPM.info(ppm)
 
 -- Test writing it back

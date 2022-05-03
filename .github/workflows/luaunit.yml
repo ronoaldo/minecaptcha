@@ -1,0 +1,19 @@
+name: luaunit
+
+on: [push, pull_request]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-20.04
+
+    steps:
+    - uses: actions/checkout@v1
+    - name: apt
+      run: sudo apt-get install -y luarocks lua5.1
+    - name: luaunit install
+      run: sudo luarocks install luaunit
+    - name: luaunit run
+      run: |
+        lua init_test.lua -v
+        cd lib && lua ppm_test.lua

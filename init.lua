@@ -46,7 +46,9 @@ if ranks then
 	local bypass = minetest.settings:get("minecaptcha.bypass_ranks")
 	if bypass and bypass ~= "" then
 		for str in string.gmatch(bypass, "([^,]+)") do
-			cfg.bypass_ranks[string:trim(str)] = true
+			local r = str:trim()
+			D("> Rank "..r.." can bypass captcha")
+			cfg.bypass_ranks[r] = true
 		end
 	end
 else
@@ -59,10 +61,11 @@ cfg.bypass_users = {}
 local bypass = minetest.settings:get("minecaptcha.bypass_users")
 if bypass and bypass ~= "" then
 	for str in string.gmatch(bypass, "([^,]+)") do
-		cfg.bypass_users[string:trim(str)] = true
+		local p = str:trim()
+		D("> User "..p.." can bypass captcha")
+		cfg.bypass_users[p] = true
 	end
 end
-
 
 I("Loaded settings: "..dump(cfg))
 
@@ -314,3 +317,9 @@ minetest.register_on_player_receive_fields(on_form_submit)
 
 -- We're done, show up on server logs.
 I("Mod loaded")
+
+-- For testing
+if minetest.is_mock_server then
+	D("Returning values from test execution")
+	return { cfg = cfg }
+end
