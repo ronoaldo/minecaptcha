@@ -3,10 +3,11 @@ allow_defined_top = true
 
 globals = {
     "minetest",
+    "ranks"
 }
 
 read_globals = {
-    string = {fields = {"split"}},
+    string = {fields = {"split","trim"}},
     table = {fields = {"copy", "getn"}},
 
     -- Builtin
@@ -17,3 +18,4 @@ read_globals = {
     -- MTG
     "default", "sfinv", "creative",
 }
+
