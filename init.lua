@@ -1,22 +1,16 @@
 -- Simple captcha mod for Minetest.
 
 -- Helper globals
-local DIR = minetest.get_modpath(minetest.get_current_modname())
-
--- Imports
-local PPM = dofile(DIR.."/ppm.lua")
-
--- Informational log
---local function I(msg) minetest.log("info", "[MOD]minecaptcha: "..msg) end
-local function I(msg) minetest.log("[MOD]minecaptcha: "..msg) end
---local function D(msg) minetest.log("verbose", "[MOD]minecaptcha: "..msg) end
-local function D(msg) minetest.log("[MOD]minecaptcha: "..msg) end
--- Unused right now
---local function E(msg) minetest.log("error", "[MOD]minecaptcha: "..msg) end
-
--- Global colors as bytes
+local MOD_DIR = minetest.get_modpath(minetest.get_current_modname())
 local FORM_NAME = "captcha"
 local rng = PcgRandom(os.time())
+
+-- Imports
+local PPM = dofile(MOD_DIR.."/lib/ppm.lua")
+
+-- Informational log
+local function I(msg) minetest.log("action", "[MOD]minecaptcha: "..msg) end
+local function D(msg) minetest.log("verbose", "[MOD]minecaptcha: "..msg) end
 
 -- Settings
 local cfg = {
@@ -52,7 +46,9 @@ if ranks then
 	local bypass = minetest.settings:get("minecaptcha.bypass_ranks")
 	if bypass and bypass ~= "" then
 		for str in string.gmatch(bypass, "([^,]+)") do
-			cfg.bypass_ranks[string:trim(str)] = true
+			local r = str:trim()
+			D("> Rank "..r.." can bypass captcha")
+			cfg.bypass_ranks[r] = true
 		end
 	end
 else
@@ -65,10 +61,11 @@ cfg.bypass_users = {}
 local bypass = minetest.settings:get("minecaptcha.bypass_users")
 if bypass and bypass ~= "" then
 	for str in string.gmatch(bypass, "([^,]+)") do
-		cfg.bypass_users[string:trim(str)] = true
+		local p = str:trim()
+		D("> User "..p.." can bypass captcha")
+		cfg.bypass_users[p] = true
 	end
 end
-
 
 I("Loaded settings: "..dump(cfg))
 
@@ -83,36 +80,43 @@ end
 -- Load basic number textures
 local numbers = {}
 for i=0, 9 do
-	numbers[i] = PPM.read(DIR.."/ppm-textures/"..i..".ppm")
+    numbers[i] = PPM.read(MOD_DIR.."/ppm-textures/"..i..".ppm")
 end
 D("Loaded "..#numbers.." numeric textures.")
 
 -- Generates a random captcha image
-local function new_captcha()
-	-- Let's grab random numbers first
-	local n1 = rng:next(0,9)
-	local n2 = rng:next(0,9)
-	local n3 = rng:next(0,9)
-	local n4 = rng:next(0,9)
-	D("Creating captcha n1="..n1..", n2="..n2..", n3="..n3..", n4="..n4)
-	-- Record the response for current challenge
-	local response = n1..""..n2..""..n3..""..n4
-	-- Creates a small in-memory captcha
-	local canvas = PPM.new(32, 14)
-	PPM.draw(numbers[n1], canvas, 3, 1)
-	PPM.draw(numbers[n2], canvas, 2, 8)
-	PPM.draw(numbers[n3], canvas, 3, 16)
-	PPM.draw(numbers[n4], canvas, 2, 22)
-	-- TODO(ronoaldo): add some random noise the the image, like a blur effect
-	-- Render the challenge as PNG
---	local data = PPM.pixel_array(canvas)
---	local png = minetest.encode_png(32, 14, data)
---	local png64 = minetest.encode_base64(png)
-	local texture = "blank.bmp"
-	------------------------- REMOVE THIS ------------------------
-	minetest.chat_send_all(tostring(response))
-	--------------------------------------------------------------
-	return response, texture
+local function async_make_captcha(callback)
+    -- Let's grab random numbers first
+    local n1 = rng:next(0,9)
+    local n2 = rng:next(0,9)
+    local n3 = rng:next(0,9)
+    local n4 = rng:next(0,9)
+    D("Creating captcha n1="..n1..", n2="..n2..", n3="..n3..", n4="..n4)
+    -- Record the response for current challenge
+    local response = n1..""..n2..""..n3..""..n4
+    -- Creates a small in-memory captcha
+    local canvas = PPM.new(32, 14)
+    PPM.draw(canvas, numbers[n1], 3, 1)
+    PPM.draw(canvas, numbers[n2], 2, 8)
+    PPM.draw(canvas, numbers[n3], 3, 16)
+    PPM.draw(canvas, numbers[n4], 2, 22)
+    -- TODO(ronoaldo): add some random noise the the image, like a blur effect
+    -- Render the challenge as PNG
+    D("Using dynamic_media_add to send captcha image to client.")
+    -- Save temp file to world dir
+    local texture = "captcha_".. rng:next(1000, 9999)..".png"
+    local temp_file = minetest.get_worldpath().."/"..texture
+    PPM.write_png(canvas, temp_file)
+    local options = {
+        filepath = temp_file,
+        ephemeral = true,
+    }
+    minetest.dynamic_add_media(options, function(name)
+        D("Showing captcha to "..name)
+        callback(response, texture)
+        D("Removing temporary file from server, "..name.." already downloaded it")
+        os.remove(temp_file)
+    end)
 end
 
 -- Sends a text message to the player
@@ -134,18 +138,18 @@ local challenges = {}
 
 -- Callback to execute when a new player joins the game.
 local function show_captcha_to_player(player)
-	local name = player:get_player_name()
-	local texture
-	-- Save the challenges and send the texture inline as a small PNG file.
-	challenges[name], texture = new_captcha()
-	D("Generated new captcha for player "..name.." texture => "..texture)
-	show_message_to_player(player, "Are you a robot? Solve the captcha before interacting with the server.")
-	local fs = "formspec_version[5]"
-		.."size[8,4]"
-		.."image[0.6,0.9;1.6,1.6;"..texture.."]"
-		.."field[2.5,1.3;5.2,1.2;captcha_solution;Type the numbers:;]"
-		.."button[5.5,2.9;2.2,0.9;captcha_send;Send]"
-	minetest.show_formspec(name, FORM_NAME, fs)
+    local name = player:get_player_name()
+    async_make_captcha(function(challenge, texture)
+        challenges[name] = challenge
+        D("Generated new captcha for player "..name.." texture => "..texture)
+        show_message_to_player(player, "Are you a robot? Solve the captcha before interacting with the server.")
+        local fs = "formspec_version[5]"
+            .."size[8,4]"
+            .."image[0.6,0.9;1.6,1.6;"..texture.."]"
+            .."field[2.5,1.3;5.2,1.2;captcha_solution;Type the numbers:;]"
+            .."button[5.5,2.9;2.2,0.9;captcha_send;Send]"
+        minetest.show_formspec(name, FORM_NAME, fs)
+    end)
 end
 
 local function validate_storage(name, i)
@@ -313,3 +317,9 @@ minetest.register_on_player_receive_fields(on_form_submit)
 
 -- We're done, show up on server logs.
 I("Mod loaded")
+
+-- For testing
+if minetest.is_mock_server then
+	D("Returning values from test execution")
+	return { cfg = cfg }
+end

@@ -3,7 +3,7 @@ allow_defined_top = true
 
 globals = {
     "minetest",
-    "ranks"
+    "ranks",
 }
 
 read_globals = {
@@ -19,3 +19,8 @@ read_globals = {
     "default", "sfinv", "creative",
 }
 
+files["init_test.lua"] = {
+    globals = {
+        "string"
+    }
+}

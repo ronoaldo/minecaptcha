@@ -1,10 +1,14 @@
 # Enable ranks usage if Ranks is installed.
 minecaptcha.use_ranks (Use Ranks if installed) bool true
 
-# Comma separated list of privs to apply while captcha is shown. If Ranks is enabled, this must be the name of a rank to apply. If this is empty, no privs will be given before captcha is complete
+# Comma separated list of privs to apply while captcha is shown.
+# If Ranks is enabled, this must be the name of a rank to apply.
+# If this is empty, no privs will be given before captcha is complete.
 minecaptcha.privs_during_captcha (Privs or rank to apply during captcha verification) string
 
-# Comma separated list of privs to apply on successful captcha completion. If Ranks is enabled, this must be the name of a rank to apply. If this is left empty, then the privs or rank will be stored before removal and then restored on success.
+# Comma separated list of privs to apply on successful captcha completion.
+# If Ranks is enabled, this must be the name of a rank to apply.
+# If this is left empty, then the privs or rank will be stored before removal and then restored on success.
 minecaptcha.privs_on_success (Privs or rank to apply on success) string
 
 # If enabled, accounts that don't solve the captcha are banned when disconnecting.
